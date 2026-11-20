@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1
+
+- Library loads in chunks as you scroll (infinite scroll): opening a film with thousands of clips is instant, and only
+  a few dozen cards are on the page at a time. Folders load the same way.
+- Thumbnails for what's on screen load first when scrolling fast.
+- Selecting hundreds of clips stays instant; the length total only shows once it's known for every selected clip.
+- Windows no longer labels the app as Electron after running it from source.
+
 ## 1.2.0
 
 - Library page: every clip you've made, grouped by film or season, with hover previews and details (length,

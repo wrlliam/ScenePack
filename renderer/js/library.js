@@ -30,6 +30,7 @@
     let dest = store.get("libDest", "");
     let mode = "copy", perFilm = store.get("libPerFilm", false);
     const cards = new Map(); // path -> card element (for live updates)
+    let sizes = new Map(); // path -> file size, for quick selection totals
 
     // ---------------------------------------------------------------- side panel
     const selCount = h("div", { class: "font-display text-[36px] leading-none" }, "0");
@@ -85,7 +86,11 @@
 
     // ---------------------------------------------------------------- list
     const searchField = h("input", { class: "field w-full", placeholder: "Filter by film, show or clip name" });
-    searchField.addEventListener("input", () => ((filter = searchField.value.trim().toLowerCase()), render()));
+    let filterTimer;
+    searchField.addEventListener("input", () => {
+      clearTimeout(filterTimer);
+      filterTimer = setTimeout(() => ((filter = searchField.value.trim().toLowerCase()), render()), 180);
+    });
     const summary = h("span", { class: "text-muted text-[14px] whitespace-nowrap" });
     const listInner = h("div", { class: "flex flex-col gap-3" });
     const list = h("div", { class: "flex-1 min-w-0 scroll pr-2 pb-4" },
@@ -111,8 +116,8 @@
       groups = r.groups;
       loaded = true;
       stale = false;
-      const exists = new Set(groups.flatMap((g) => g.clips.map((c) => c.path)));
-      [...selected.keys()].forEach((p) => !exists.has(p) && selected.delete(p));
+      sizes = new Map(groups.flatMap((g) => g.clips.map((c) => [c.path, c.size])));
+      [...selected.keys()].forEach((p) => !sizes.has(p) && selected.delete(p));
       paintRoots();
       render();
     }
@@ -123,9 +128,24 @@
       return g.clips.filter((c) => c.name.toLowerCase().includes(filter));
     }
 
+    // ---- infinite scroll: folders and clips are added in chunks as you near the bottom, so even a whole film
+    // with thousands of clips only ever has a few dozen cards (and thumbnails) on the page at once.
+    const CLIP_CHUNK = 48;
+    const GROUP_CHUNK = 20;
+    const moreObserver = new IntersectionObserver((entries) => {
+      for (const e of entries) if (e.isIntersecting && e.target._more) e.target._more();
+    }, { root: list, rootMargin: "700px" });
+    // A sentinel only fires when it starts intersecting, so after each chunk it is re-observed: if it is
+    // still near the bottom (the chunk was short), the next chunk loads straight away.
+    const rearm = (s) => (moreObserver.unobserve(s), moreObserver.observe(s));
+    const loadingRow = (text) =>
+      h("div", { class: "flex items-center justify-center gap-2.5 py-4 text-muted text-[13px]" }, Spinner(), h("span", {}, text));
+    let groupTiles = [];
+
     function render() {
       listInner.innerHTML = "";
       cards.clear();
+      groupTiles = [];
       const total = groups.reduce((a, g) => a + g.count, 0);
       summary.textContent = groups.length ? `${plural(total, "clip")} in ${plural(groups.length, "folder")}` : "";
       if (!groups.length) {
@@ -135,13 +155,25 @@
         ]));
         return refreshSelection();
       }
-      let shown = 0;
-      groups.forEach((g, i) => {
+      const visible = [];
+      for (const g of groups) {
         const clips = matches(g);
-        if (!clips.length) return;
-        listInner.append(Group(g, clips, shown++));
-      });
-      if (!shown) listInner.append(h("div", { class: "tile sticker p-8 text-center text-muted anim-rise" }, `Nothing matches "${filter}".`));
+        if (clips.length) visible.push([g, clips]);
+      }
+      if (!visible.length) {
+        listInner.append(h("div", { class: "tile sticker p-8 text-center text-muted anim-rise" }, `Nothing matches "${filter}".`));
+        return refreshSelection();
+      }
+      let shown = 0;
+      const sentinel = loadingRow("Loading more folders...");
+      const addGroups = () => {
+        visible.slice(shown, shown + GROUP_CHUNK).forEach(([g, clips]) => listInner.insertBefore(Group(g, clips, shown++), sentinel));
+        if (shown >= visible.length) return moreObserver.unobserve(sentinel), sentinel.remove();
+        rearm(sentinel);
+      };
+      sentinel._more = addGroups;
+      listInner.append(sentinel);
+      addGroups();
       refreshSelection();
     }
 
@@ -172,15 +204,33 @@
           h("div", { class: "text-muted text-[12px] truncate mt-0.5" }, g.sources.length ? `From ${g.sources.join(", ")}` : shortPath(g.path, 80))),
         selBtn, openFolder);
       const body = h("div", { class: "overflow-hidden transition-[height] duration-300 ease-snap" });
-      const tile = h("div", { class: "tile sticker anim-rise", style: { animationDelay: `${Math.min(index, 10) * 35}ms` } }, head, body);
+      const tile = h("div", { class: "tile sticker anim-rise", style: { animationDelay: `${Math.min(index % GROUP_CHUNK, 10) * 35}ms` } }, head, body);
       tile._paintSel = paintSel;
+      groupTiles.push(tile);
       paintSel();
 
       const fill = () => {
         const grid = h("div", { class: "grid gap-3 grid-cols-[repeat(auto-fill,minmax(176px,1fr))] px-4 pb-4" });
-        clips.forEach((c, i) => grid.append(Clip(c, g, clips, i)));
         body.append(grid);
-        loadMeta(clips);
+        let rendered = 0;
+        const more = clips.length > CLIP_CHUNK ? loadingRow("") : null;
+        const addClips = () => {
+          const chunk = clips.slice(rendered, rendered + CLIP_CHUNK);
+          const frag = document.createDocumentFragment();
+          chunk.forEach((c, k) => frag.append(Clip(c, g, clips, rendered + k)));
+          grid.append(frag);
+          rendered += chunk.length;
+          loadMeta(chunk);
+          if (!more) return;
+          if (rendered >= clips.length) return moreObserver.unobserve(more), more.remove();
+          more.lastChild.textContent = `Showing ${rendered} of ${clips.length} clips  ·  loading more as you scroll`;
+          rearm(more);
+        };
+        if (more) {
+          more._more = addClips;
+          body.append(more);
+        }
+        addClips();
       };
       if (isOpen) fill();
       else body.style.height = "0px";
@@ -218,6 +268,8 @@
           metaLine));
       card.paint = (pop) => {
         const on = selected.has(c.path);
+        if (on === card._on && !pop) return; // nothing changed: skip the DOM work
+        card._on = on;
         card.style.outline = on ? "3px solid var(--c-accent)" : "3px solid transparent";
         card.style.outlineOffset = "-1px";
         check.className = `absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center sticker-sm transition-colors duration-200 ${on ? "bg-accent text-on-accent" : "bg-page/70 text-transparent"}`;
@@ -268,13 +320,18 @@
       return card;
     }
 
-    // thumbnails load as cards scroll into view, three at a time
-    const queue = [];
+    // Thumbnails load as cards come near the screen, four at a time. The newest request goes first, and a card
+    // scrolled away before its turn is skipped (and asked for again if it comes back), so fast scrolling through a
+    // whole film fills in what you're looking at instead of everything you passed on the way.
+    const queue = new Set();
     let loading = 0;
     function pump() {
-      while (loading < 3 && queue.length) {
-        const { img, c } = queue.shift();
-        if (!img.isConnected) continue;
+      while (loading < 4 && queue.size) {
+        const thumb = [...queue].pop();
+        queue.delete(thumb);
+        const { img, c } = thumb._load;
+        if (!img.isConnected || !thumb._near) continue;
+        observer.unobserve(thumb);
         loading++;
         SP.call("library.thumb", { path: c.path, duration: (meta[c.path] || {}).duration || 0 })
           .then((p) => p && ((img.src = fileUrl(p)), img.addEventListener("load", () => img.classList.remove("opacity-0"), { once: true })))
@@ -284,12 +341,12 @@
     }
     const observer = new IntersectionObserver((entries) => {
       for (const e of entries) {
-        if (!e.isIntersecting) continue;
-        observer.unobserve(e.target);
-        queue.push(e.target._load);
-        pump();
+        e.target._near = e.isIntersecting;
+        if (e.isIntersecting) queue.add(e.target);
+        else queue.delete(e.target);
       }
-    }, { root: list, rootMargin: "400px" });
+      pump();
+    }, { root: list, rootMargin: "300px" });
 
     async function loadMeta(clips) {
       const need = clips.map((c) => c.path).filter((p) => !(p in meta));
@@ -298,7 +355,7 @@
           const r = await SP.call("library.meta", { paths: need.slice(i, i + 40) });
           Object.assign(meta, r);
           Object.keys(r).forEach((p) => cards.get(p) && cards.get(p).meta());
-          refreshSelection();
+          if (Object.keys(r).some((p) => selected.has(p))) paintSummary();
         } catch {}
       }
     }
@@ -306,19 +363,24 @@
     // ---------------------------------------------------------------- selection + export
     function refreshSelection(changed) {
       if (changed && cards.get(changed)) cards.get(changed).paint(true);
-      else cards.forEach((card) => card.paint(false));
-      listInner.querySelectorAll(".tile").forEach((t) => t._paintSel && t._paintSel());
+      else cards.forEach((card) => card.paint(false)); // cheap: cards skip work when nothing changed
+      groupTiles.forEach((t) => t.isConnected && t._paintSel());
+      paintSummary();
+    }
+
+    function paintSummary() {
       const items = [...selected.values()];
       const films = new Set(items.map((i) => i.group)).size;
-      const secs = items.reduce((a, i) => a + ((meta[i.path] || {}).duration || 0), 0);
-      const bytes = items.reduce((a, i) => {
-        const g = groups.find((g) => g.clips.some((c) => c.path === i.path));
-        const c = g && g.clips.find((c) => c.path === i.path);
-        return a + (c ? c.size : 0);
-      }, 0);
+      let secs = 0, bytes = 0, known = true;
+      for (const i of items) {
+        const m = meta[i.path];
+        if (m) secs += m.duration || 0;
+        else known = false; // details for clips not scrolled to yet aren't loaded: don't show a partial total
+        bytes += sizes.get(i.path) || 0;
+      }
       selCount.textContent = String(items.length);
       selDetail.textContent = items.length
-        ? `${plural(items.length, "clip")} from ${plural(films, "film")}${secs ? `  ·  ${fmtDur(secs)}` : ""}  ·  ${fmtSize(bytes)}`
+        ? `${plural(items.length, "clip")} from ${plural(films, "film")}${known && secs ? `  ·  ${fmtDur(secs)}` : ""}  ·  ${fmtSize(bytes)}`
         : "Click clips to select them. Shift-click selects a run.";
       exportBtn.disabled = !items.length || exporting;
       exportBtn.setLabel(items.length ? `Export ${plural(items.length, "clip")}` : "Export clips");
