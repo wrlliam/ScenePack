@@ -1,0 +1,94 @@
+name: Build
+
+# Every push and pull request builds the Windows installer and attaches it to the run (Actions > the run > Artifacts).
+# Pushing a version tag such as v1.1.0 also publishes a GitHub Release with the installer attached.
+# Installed copies of ScenePack check those releases and update themselves.
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # These two steps must come before anything is built, so the app, its backend and its updater all agree.
+      - name: Point the app and its updates at this repository
+        shell: pwsh
+        run: |
+          npm pkg set repository.type=git "repository.url=https://github.com/${{ github.repository }}.git"
+          (Get-Content scenepack/__init__.py) -replace 'REPO_URL = ".*"', 'REPO_URL = "https://github.com/${{ github.repository }}"' | Set-Content scenepack/__init__.py
+
+      - name: Set the version from the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart("v")
+          npm pkg set "version=$v"
+          (Get-Content scenepack/__init__.py) -replace 'VERSION = ".*"', "VERSION = `"$v`"" | Set-Content scenepack/__init__.py
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Build the backend (PyInstaller)
+        run: pyinstaller --noconfirm --clean scenepack-backend.spec
+
+      - name: Fetch FFmpeg
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/fetch-ffmpeg.ps1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Node packages
+        run: npm ci
+
+      - name: Build the installer
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ScenePack-Setup
+          path: |
+            release/ScenePack-Setup-*.exe
+            release/latest.yml
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          # latest.yml and the .blockmap are what installed copies read to update themselves
+          # (only the parts of the installer that changed are downloaded).
+          files: |
+            release/ScenePack-Setup-*.exe
+            release/ScenePack-Setup-*.exe.blockmap
+            release/latest.yml
+          generate_release_notes: true

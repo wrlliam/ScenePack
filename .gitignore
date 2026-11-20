@@ -1,0 +1,13 @@
+# dependencies and build output
+node_modules/
+dist/
+build/
+release/
+vendor/
+renderer/build/
+renderer/fonts/
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+Thumbs.db

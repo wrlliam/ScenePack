@@ -1,0 +1,7 @@
+# Python backend. Scene splitting itself needs nothing beyond the standard library and FFmpeg;
+# these packages power AI search.
+numpy>=2.0
+tokenizers>=0.20
+# DirectML lets AI search run on any modern AMD, NVIDIA or Intel graphics card on Windows.
+onnxruntime-directml>=1.20; sys_platform == "win32"
+onnxruntime>=1.20; sys_platform != "win32"

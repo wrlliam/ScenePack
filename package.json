@@ -1,0 +1,94 @@
+{
+  "name": "scenepack",
+  "productName": "ScenePack",
+  "version": "1.2.0",
+  "description": "Split films and TV episodes into scenepacks: one clip per scene, with AI scene search.",
+  "main": "electron/main.js",
+  "license": "MIT",
+  "author": "ScenePack contributors",
+  "private": true,
+  "scripts": {
+    "css": "tailwindcss -i renderer/styles.css -o renderer/build/app.css --minify",
+    "css:watch": "tailwindcss -i renderer/styles.css -o renderer/build/app.css --watch",
+    "fonts": "node scripts/copy-fonts.js",
+    "start": "npm run fonts && npm run css && electron .",
+    "backend": "pyinstaller --noconfirm --clean scenepack-backend.spec",
+    "dist": "npm run fonts && npm run css && electron-builder --win --publish never"
+  },
+  "build": {
+    "appId": "club.scenepack.app",
+    "productName": "ScenePack",
+    "copyright": "ScenePack contributors",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "LICENSE",
+      "electron/**",
+      "renderer/index.html",
+      "renderer/js/**",
+      "renderer/build/**",
+      "renderer/fonts/**",
+      "assets/icon.png",
+      "assets/icon_128.png",
+      "assets/icon_512.png",
+      "assets/icon_32.png",
+      "assets/icon.ico",
+      "!**/*.map",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/scenepack-backend",
+        "to": "backend"
+      },
+      {
+        "from": "vendor/ffmpeg",
+        "to": "ffmpeg"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ScenePack",
+      "artifactName": "ScenePack-Setup-${version}.exe",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "license": "LICENSE"
+    }
+  },
+  "devDependencies": {
+    "@fontsource-variable/dm-sans": "^5.3.0",
+    "@fontsource-variable/figtree": "^5.3.0",
+    "@tailwindcss/cli": "^4.3.5",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
+    "tailwindcss": "^4.3.5"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wrlliam/ScenePack.git"
+  },
+  "homepage": "https://github.com/wrlliam/ScenePack#readme",
+  "bugs": {
+    "url": "https://github.com/wrlliam/ScenePack/issues"
+  }
+}

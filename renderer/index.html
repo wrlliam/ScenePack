@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' file: data:; media-src 'self' file:; font-src 'self'; connect-src 'none'"
+    />
+    <title>ScenePack</title>
+    <link rel="stylesheet" href="build/app.css" />
+  </head>
+  <body>
+    <div id="app" class="h-full grid grid-cols-[236px_1fr] grid-rows-[44px_1fr]">
+      <header class="drag col-span-2 flex items-center gap-2 pl-6">
+        <img src="../assets/icon_128.png" alt="" class="w-[26px] h-[26px] rounded-[7px]" draggable="false" />
+        <span class="font-display text-[22px] leading-none ml-0.5">scenepack</span>
+        <span id="version" class="tag mt-1"></span>
+      </header>
+
+      <aside class="flex flex-col px-4 pt-5 pb-5 min-h-0">
+        <nav id="nav" class="relative flex flex-col gap-1"></nav>
+        <div class="mt-auto">
+        <div id="update" hidden></div>
+        <div class="tile sticker p-4">
+          <div class="label-caps">Engine</div>
+          <div id="engine" class="text-sm mt-1.5 leading-snug text-muted">Starting...</div>
+        </div>
+        </div>
+      </aside>
+
+      <main class="flex flex-col min-h-0 min-w-0">
+        <div id="pages" class="relative flex-1 min-h-0"></div>
+        <footer class="flex items-center gap-3 px-8 py-4 border-t border-line">
+          <div id="footer-left" class="flex items-center gap-3"></div>
+          <div id="summary" class="ml-auto text-muted text-[15px]"></div>
+          <div id="overall" class="pl-2" hidden></div>
+        </footer>
+      </main>
+    </div>
+
+    <div id="toasts" class="fixed right-7 bottom-24 z-50 flex flex-col items-end gap-2 pointer-events-none"></div>
+
+    <div id="drop" class="fixed inset-0 z-40 hidden items-center justify-center bg-[var(--c-scrim)]">
+      <div class="tile sticker-lg px-14 py-12 flex flex-col items-center anim-pop">
+        <div id="drop-fan"></div>
+        <div id="drop-title" class="font-display text-[30px] mt-6">Drop to add</div>
+        <div id="drop-body" class="text-muted mt-1">Videos, folders or pictures</div>
+      </div>
+    </div>
+
+    <script src="js/ui.js"></script>
+    <script src="js/queue.js"></script>
+    <script src="js/tv.js"></script>
+    <script src="js/ai.js"></script>
+    <script src="js/library.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/about.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>
