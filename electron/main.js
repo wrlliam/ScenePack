@@ -322,7 +322,9 @@ if (!app.requestSingleInstanceLock()) {
     const files = argv.slice(1).filter((a) => !a.startsWith("-") && fs.existsSync(a));
     if (files.length) send("openFiles", { paths: files });
   });
-  app.setAppUserModelId("club.scenepack.app");
+  // Windows shows the name and icon registered for this ID (taskbar, Start, notifications). Runs from source use
+  // their own ID, otherwise Electron registers "Electron" with its own icon under the installed app's ID.
+  app.setAppUserModelId(app.isPackaged ? "club.scenepack.app" : "club.scenepack.app.dev");
   app.whenReady().then(() => {
     let theme = "dark";
     try {
