@@ -39,7 +39,10 @@ frame-accurate clip, named with where it starts (for example `Avatar_scene_012_0
 
 ## Download
 
-Get the latest **ScenePack-Setup.exe** from the [Releases](../../releases) page and run it. FFmpeg is included.
+ScenePack runs on **Windows 10 and 11** (64-bit). Other platforms aren't supported yet.
+
+Get **ScenePack-Setup.exe** from the [latest release](../../releases/latest) and run it. FFmpeg is included.
+The **Latest build** pre-release on the [Releases](../../releases) page always has the newest code from `main`.
 The AI model (about 150 to 290 MB) downloads the first time you use AI search.
 
 Windows may warn that the installer isn't signed. Click **More info**, then **Run anyway**.

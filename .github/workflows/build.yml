@@ -81,6 +81,31 @@ jobs:
             release/latest.yml
           if-no-files-found: error
 
+      # Every push to main also refreshes a "Latest build" pre-release, so the newest installer is always on the
+      # Releases page. Automatic updates ignore pre-releases: installed copies only move to version releases.
+      - name: Replace the "Latest build" pre-release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest-build --repo "${{ github.repository }}" --cleanup-tag --yes 2>$null
+          $global:LASTEXITCODE = 0
+
+      - name: Publish the "Latest build" pre-release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-build
+          target_commitish: ${{ github.sha }}
+          name: Latest build (main)
+          prerelease: true
+          make_latest: false
+          body: |
+            Automatic build of the newest code on `main` (commit ${{ github.sha }}).
+            For the stable version, use the latest numbered release instead. Windows only for now.
+          files: release/ScenePack-Setup-*.exe
+
       - name: Publish the release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
